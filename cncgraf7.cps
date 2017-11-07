@@ -61,7 +61,7 @@ propertyDefinitions = {
   sequenceNumberIncrement: {title:"Sequence number increment", description:"The amount by which the sequence number is incremented by in each block.", group:1, type:"integer"},
   optionalStop: {title:"Optional stop", description:"Outputs optional stop code during when necessary in the code.", type:"boolean"},
   separateWordsWithSpace: {title:"Separate words with space", description:"Adds spaces between words if 'yes' is selected.", type:"boolean"}
-  homingZ: {title:"Homing Z", description: "Z position for homeing in workspice coordinates, specified in CNCGraf7.", type: "integer"}																																			 
+  homingZ: {title:"Homing Z", description: "Z position for homing in workspice coordinates, specified in CNCGraf7.", type: "integer"}																																			 
 };
 
 var numberOfToolSlots = 9999;
