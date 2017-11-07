@@ -1,4 +1,7 @@
 /**
+  Post processor configuration for CNCGraf7 modified by Tim Schneider (tim@schneider.engineering)
+  
+  based on 
   Copyright (C) 2012-2016 by Autodesk, Inc.
   All rights reserved.
 
@@ -10,14 +13,14 @@
   FORKID {2EECF092-D7C3-4ACA-BFE6-377B72950FE9}
 */
 
-description = "RS-274D";
-vendor = "Autodesk";
-vendorUrl = "http://www.autodesk.com";
-legal = "Copyright (C) 2012-2016 by Autodesk, Inc.";
+description = "CNCGraf7";
+vendor = "BOENIGK-electronics";
+vendorUrl = "https://www.boenigk.eu";
+legal = "Copyright (C) 2017 by Tim Schneider Engieering UG(haftungsbeschränkt).";
 certificationLevel = 2;
 minimumRevision = 24000;
 
-longDescription = "Generic post for the RS-274D format. Most CNCs will use a format very similar to RS-274D. When making a post for a new CNC control this post will often serve as the basis.";
+longDescription = "Specific post for the RS-274D format of CNCGraf7 without circular XZ and XY moves.";
 
 extension = "nc";
 setCodePage("ascii");
@@ -31,7 +34,7 @@ maximumCircularRadius = spatial(1000, MM);
 minimumCircularSweep = toRad(0.01);
 maximumCircularSweep = toRad(180);
 allowHelicalMoves = true;
-allowedCircularPlanes = undefined; // allow any circular motion
+allowedCircularPlanes = (1 << PLANE_XY); // allow only XY plane and to be sure, linearize XZ and YZ plane in OnCircular
 
 
 
@@ -44,7 +47,8 @@ properties = {
   sequenceNumberStart: 10, // first sequence number
   sequenceNumberIncrement: 5, // increment for sequence numbers
   optionalStop: true, // optional stop
-  separateWordsWithSpace: true // specifies that the words should be separated with a white space
+  separateWordsWithSpace: true, // specifies that the words should be separated with a white space
+  homingZ: 100 // specify the z homing position											   
 };
 
 // user-defined property definitions
@@ -57,6 +61,7 @@ propertyDefinitions = {
   sequenceNumberIncrement: {title:"Sequence number increment", description:"The amount by which the sequence number is incremented by in each block.", group:1, type:"integer"},
   optionalStop: {title:"Optional stop", description:"Outputs optional stop code during when necessary in the code.", type:"boolean"},
   separateWordsWithSpace: {title:"Separate words with space", description:"Adds spaces between words if 'yes' is selected.", type:"boolean"}
+  homingZ: {title:"Homing Z", description: "Z position for homeing in workspice coordinates, specified in CNCGraf7.", type: "integer"}																																			 
 };
 
 var numberOfToolSlots = 9999;
@@ -225,6 +230,9 @@ function onOpen() {
   // absolute coordinates and feed per min
   writeBlock(gAbsIncModal.format(90), gFeedModeModal.format(94));
   writeBlock(gPlaneModal.format(17));
+  writeBlock(gUnitModal.format(21));
+  writeComment("Set initial feed rate to 50 mm/min ");
+  writeBlock(gMotionModal.format(1), feedOutput.format(50));														
 
   switch (unit) {
   case IN:
@@ -369,8 +377,11 @@ function onSection() {
 
     // retract to safe plane
     retracted = true;
-    writeBlock(gFormat.format(28), gAbsIncModal.format(91), "Z" + xyzFormat.format(0)); // retract
-    writeBlock(gAbsIncModal.format(90));
+    
+	writeBlock(gAbsIncModal.format(90));
+	writeBlock(gFormat.format(53), gFormat.format(0), "Z" + xyzFormat.format(properties.homingZ)); // retract
+	writeBlock(gFormat.format(60));																										 
+
     zOutput.reset();
   }
 
@@ -560,7 +571,7 @@ function onDwell(seconds) {
     warning(localize("Dwelling time is out of range."));
   }
   seconds = clamp(0.001, seconds, 99999.999);
-  writeBlock(gFormat.format(4), "P" + secFormat.format(seconds));
+  writeBlock(gFormat.format(4), "H" + secFormat.format(seconds));
 }
 
 function onSpindleSpeed(spindleSpeed) {
@@ -869,12 +880,6 @@ function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
     case PLANE_XY:
       writeBlock(gPlaneModal.format(17), gMotionModal.format(clockwise ? 2 : 3), xOutput.format(x), iOutput.format(cx - start.x, 0), jOutput.format(cy - start.y, 0), feedOutput.format(feed));
       break;
-    case PLANE_ZX:
-      writeBlock(gPlaneModal.format(18), gMotionModal.format(clockwise ? 2 : 3), zOutput.format(z), iOutput.format(cx - start.x, 0), kOutput.format(cz - start.z, 0), feedOutput.format(feed));
-      break;
-    case PLANE_YZ:
-      writeBlock(gPlaneModal.format(19), gMotionModal.format(clockwise ? 2 : 3), yOutput.format(y), jOutput.format(cy - start.y, 0), kOutput.format(cz - start.z, 0), feedOutput.format(feed));
-      break;
     default:
       linearize(tolerance);
     }
@@ -882,12 +887,6 @@ function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
     switch (getCircularPlane()) {
     case PLANE_XY:
       writeBlock(gPlaneModal.format(17), gMotionModal.format(clockwise ? 2 : 3), xOutput.format(x), yOutput.format(y), zOutput.format(z), iOutput.format(cx - start.x, 0), jOutput.format(cy - start.y, 0), feedOutput.format(feed));
-      break;
-    case PLANE_ZX:
-      writeBlock(gPlaneModal.format(18), gMotionModal.format(clockwise ? 2 : 3), xOutput.format(x), yOutput.format(y), zOutput.format(z), iOutput.format(cx - start.x, 0), kOutput.format(cz - start.z, 0), feedOutput.format(feed));
-      break;
-    case PLANE_YZ:
-      writeBlock(gPlaneModal.format(19), gMotionModal.format(clockwise ? 2 : 3), xOutput.format(x), yOutput.format(y), zOutput.format(z), jOutput.format(cy - start.y, 0), kOutput.format(cz - start.z, 0), feedOutput.format(feed));
       break;
     default:
       linearize(tolerance);
@@ -940,13 +939,17 @@ function onSectionEnd() {
 function onClose() {
   onCommand(COMMAND_COOLANT_OFF);
 
-  writeBlock(gFormat.format(28), gAbsIncModal.format(91), "Z" + xyzFormat.format(0)); // retract
+  writeBlock(gAbsIncModal.format(90));
+  writeBlock(gFormat.format(53), gFormat.format(0), "Z" + xyzFormat.format(properties.homingZ)); // retract
+  writeBlock(gFormat.format(60));
+
   zOutput.reset();
 
   setWorkPlane(new Vector(0, 0, 0)); // reset working plane
 
   if (!machineConfiguration.hasHomePositionX() && !machineConfiguration.hasHomePositionY()) {
-    writeBlock(gFormat.format(28), gAbsIncModal.format(91), "X" + xyzFormat.format(0), "Y" + xyzFormat.format(0)); // return to home
+    writeBlock(gFormat.format(53), gFormat.format(0), "X" + xyzFormat.format(0), "Y" + xyzFormat.format(0)); // return to home
+	writeBlock(gFormat.format(60));							
   } else {
     var homeX;
     if (machineConfiguration.hasHomePositionX()) {
@@ -956,7 +959,8 @@ function onClose() {
     if (machineConfiguration.hasHomePositionY()) {
       homeY = "Y" + xyzFormat.format(machineConfiguration.getHomePositionY());
     }
-    writeBlock(gAbsIncModal.format(90), gFormat.format(53), gMotionModal.format(0), homeX, homeY);
+    writeBlock(gFormat.format(53), gFormat.format(0), homeX, homeY);
+	writeBlock(gFormat.format(60));							
   }
 
   onImpliedCommand(COMMAND_END);
