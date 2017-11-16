@@ -106,7 +106,7 @@ var gMotionModal = createModal({}, gFormat); // modal group 1 // G0-G3, ...
 var gPlaneModal = createModal({onchange:function () {gMotionModal.reset();}}, gFormat); // modal group 2 // G17-19
 var gAbsIncModal = createModal({}, gFormat); // modal group 3 // G90-91
 var gFeedModeModal = createModal({}, gFormat); // modal group 5 // G93-94
-var gUnitModal = createModal({}, gFormat); // modal group 6 // G20-21
+var gUnitModal = createModal({}, gFormat); // modal group 6 // G70-71
 var gCycleModal = createModal({}, gFormat); // modal group 9 // G81, ...
 var gRetractModal = createModal({}, gFormat); // modal group 10 // G98-99
 
@@ -230,16 +230,16 @@ function onOpen() {
   // absolute coordinates and feed per min
   writeBlock(gAbsIncModal.format(90), gFeedModeModal.format(94));
   writeBlock(gPlaneModal.format(17));
-  writeBlock(gUnitModal.format(21));
+  writeBlock(gUnitModal.format(71));
   writeComment("Set initial feed rate to 50 mm/min ");
   writeBlock(gMotionModal.format(1), feedOutput.format(50));														
 
   switch (unit) {
   case IN:
-    writeBlock(gUnitModal.format(20));
+    writeBlock(gUnitModal.format(70));
     break;
   case MM:
-    writeBlock(gUnitModal.format(21));
+    writeBlock(gUnitModal.format(71));
     break;
   }
 }
