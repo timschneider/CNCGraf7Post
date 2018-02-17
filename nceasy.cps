@@ -60,7 +60,7 @@ propertyDefinitions = {
   sequenceNumberStart: {title:"Start sequence number", description:"The number at which to start the sequence numbers.", group:1, type:"integer"},
   sequenceNumberIncrement: {title:"Sequence number increment", description:"The amount by which the sequence number is incremented by in each block.", group:1, type:"integer"},
   optionalStop: {title:"Optional stop", description:"Outputs optional stop code during when necessary in the code.", type:"boolean"},
-  separateWordsWithSpace: {title:"Separate words with space", description:"Adds spaces between words if 'yes' is selected.", type:"boolean"}
+  separateWordsWithSpace: {title:"Separate words with space", description:"Adds spaces between words if 'yes' is selected.", type:"boolean"},
   homingZ: {title:"Homing Z", description: "Z position for homing in workspice coordinates, specified in NC EAS(Y).", type: "integer"}																																			 
 };
 
@@ -596,7 +596,7 @@ function onCyclePoint(x, y, z) {
     // return to initial Z which is clearance plane and set absolute mode
 
     var F = cycle.feedrate;
-    var P = (cycle.dwell == 0) ? 0 : clamp(0.001, cycle.dwell, 99999.999); // in seconds
+    var P = (cycle.dwell == 0) ? 0 : clamp(1, cycle.dwell*1000, 99999.999); // in milliseconds
 
     switch (cycleType) {
     case "drilling":
@@ -623,28 +623,33 @@ function onCyclePoint(x, y, z) {
       }
       break;
     case "chip-breaking":
-      expandCyclePoint(x, y, z);
+	  writeBlock(
+	    gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(73),
+	    getCommonCycle(x, y, z, cycle.retract),
+	    feedOutput.format(F),
+	    conditional(P > 0, "P" + secFormat.format(P)),
+	    "Q" + xyzFormat.format(cycle.incrementalDepth)
+	  );
       break;
     case "deep-drilling":
-      if (P > 0) {
-        expandCyclePoint(x, y, z);
-      } else {
-        writeBlock(
-          gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(83),
-          getCommonCycle(x, y, z, cycle.retract),
-          "Q" + xyzFormat.format(cycle.incrementalDepth),
-          feedOutput.format(F)
-        );
-      }
+      writeBlock(
+        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(83),
+        getCommonCycle(x, y, z, cycle.retract),
+        feedOutput.format(F),
+		conditional(P > 0, "P" + secFormat.format(P)),
+        "Q" + xyzFormat.format(cycle.incrementalDepth)
+      );
       break;
     case "tapping":
       if (!F) {
         F = tool.getTappingFeedrate();
       }
       writeBlock(
-        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format((tool.type == TOOL_TAP_LEFT_HAND) ? 74 : 84),
+        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(84),
         getCommonCycle(x, y, z, cycle.retract),
-        feedOutput.format(F)
+		conditional(P > 0, "P" + secFormat.format(P)),
+        feedOutput.format(F),
+		mFormat.format((tool.type == TOOL_TAP_LEFT_HAND) ? 04 : 03)
       );
       break;
     case "left-tapping":
@@ -652,9 +657,11 @@ function onCyclePoint(x, y, z) {
         F = tool.getTappingFeedrate();
       }
       writeBlock(
-        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(74),
+        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(84),
         getCommonCycle(x, y, z, cycle.retract),
-        feedOutput.format(F)
+        conditional(P > 0, "P" + secFormat.format(P)),
+		feedOutput.format(F),
+		mFormat.format(04)
       );
       break;
     case "right-tapping":
@@ -664,67 +671,28 @@ function onCyclePoint(x, y, z) {
       writeBlock(
         gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(84),
         getCommonCycle(x, y, z, cycle.retract),
-        feedOutput.format(F)
+		conditional(P > 0, "P" + secFormat.format(P)),
+        feedOutput.format(F),
+		mFormat.format(03)
       );
       break;
     case "fine-boring": // not supported
       expandCyclePoint(x, y, z);
       break;
-    case "back-boring":
-      if (P > 0) {
-        expandCyclePoint(x, y, z);
-      } else {
-        var I = cycle.shift * 1;
-        var J = cycle.shift * 0;
-        writeBlock(
-          gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(87),
-          getCommonCycle(x, y, z, cycle.retract),
-          "I" + xyzFormat.format(I),
-          "J" + xyzFormat.format(J),
-          "K" + xyzFormat.format(cycle.bottom - cycle.backBoreDistance),
-          feedOutput.format(F)
-        );
-      }
+    case "back-boring": // not supported
+      expandCyclePoint(x, y, z);
       break;
-    case "reaming":
-      writeBlock(
-        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(85),
-        getCommonCycle(x, y, z, cycle.retract),
-        feedOutput.format(F)
-      );
+    case "reaming": // not supported
+      expandCyclePoint(x, y, z);
       break;
-    case "stop-boring":
-      writeBlock(
-        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(86),
-        getCommonCycle(x, y, z, cycle.retract),
-        feedOutput.format(F),
-        // conditional(P > 0, "P" + secFormat.format(P)),
-        "P" + secFormat.format(P) // not optional
-      );
+    case "stop-boring": // not supported
+      expandCyclePoint(x, y, z);
       break;
-    case "manual-boring":
-      writeBlock(
-        gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(88),
-        getCommonCycle(x, y, z, cycle.retract),
-        "P" + secFormat.format(P), // not optional
-        feedOutput.format(F)
-      );
+    case "manual-boring": // not supported
+      expandCyclePoint(x, y, z);
       break;
-    case "boring":
-      if (P > 0) {
-        writeBlock(
-          gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(89),
-          getCommonCycle(x, y, z, cycle.retract),
-          "P" + secFormat.format(P), // not optional
-          feedOutput.format(F)
-        );
-      } else {
-        writeBlock(
-          gRetractModal.format(98), gAbsIncModal.format(90), gCycleModal.format(85),
-          getCommonCycle(x, y, z, cycle.retract),
-          feedOutput.format(F)
-        );
-      }
+    case "boring": // not supported
+      expandCyclePoint(x, y, z);
       break;
     default:
       expandCyclePoint(x, y, z);
